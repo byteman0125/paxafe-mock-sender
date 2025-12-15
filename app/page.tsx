@@ -35,8 +35,44 @@ export default function Home() {
   const [lastResponse, setLastResponse] = useState<any>(null)
   const [lastError, setLastError] = useState<string | null>(null)
   const [configSaved, setConfigSaved] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
+  const [connectionMessage, setConnectionMessage] = useState<string>('')
 
   const samplePayloads = getSamplePayloads()
+
+  // Check API connection
+  const checkApiConnection = async () => {
+    if (!apiUrl) {
+      setConnectionStatus('disconnected')
+      setConnectionMessage('API URL not set')
+      return
+    }
+
+    setConnectionStatus('checking')
+    setConnectionMessage('Checking connection...')
+
+    try {
+      // Try to hit the health check endpoint (GET request)
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setConnectionStatus('connected')
+        setConnectionMessage(data.service ? `${data.service} - Running` : 'API is running')
+      } else {
+        setConnectionStatus('disconnected')
+        setConnectionMessage(`API returned ${response.status} ${response.statusText}`)
+      }
+    } catch (error: any) {
+      setConnectionStatus('disconnected')
+      setConnectionMessage(`Connection failed: ${error.message || 'Network error'}`)
+    }
+  }
 
   // Load saved configuration from localStorage on mount
   useEffect(() => {
@@ -52,6 +88,20 @@ export default function Home() {
       }
     }
   }, [])
+
+  // Auto-check connection when API URL changes
+  useEffect(() => {
+    if (apiUrl) {
+      // Debounce the check
+      const timer = setTimeout(() => {
+        checkApiConnection()
+      }, 500)
+      return () => clearTimeout(timer)
+    } else {
+      setConnectionStatus('disconnected')
+      setConnectionMessage('API URL not configured')
+    }
+  }, [apiUrl])
 
   // Save configuration to localStorage
   const saveConfiguration = () => {
@@ -175,6 +225,45 @@ export default function Home() {
                 <CardDescription>Set your Integration API endpoint and authentication</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Connection Status Indicator */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Connection Status</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={checkApiConnection}
+                      disabled={connectionStatus === 'checking' || !apiUrl}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${connectionStatus === 'checking' ? 'animate-spin' : ''}`} />
+                      Test Connection
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 p-3 rounded-md border bg-gray-50">
+                    {connectionStatus === 'checking' && (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        <span className="text-sm text-gray-600">Checking...</span>
+                      </>
+                    )}
+                    {connectionStatus === 'connected' && (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <span className="text-sm text-green-700 font-medium">Connected</span>
+                        <span className="text-xs text-gray-500 ml-2">{connectionMessage}</span>
+                      </>
+                    )}
+                    {connectionStatus === 'disconnected' && (
+                      <>
+                        <XCircle className="w-4 h-4 text-red-600" />
+                        <span className="text-sm text-red-700 font-medium">Disconnected</span>
+                        <span className="text-xs text-gray-500 ml-2">{connectionMessage}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">
                     API URL
