@@ -54,9 +54,12 @@ The app will be available at `http://localhost:3000`
 
 1. Push code to GitHub
 2. Import project in Vercel
-3. Deploy
+3. **Optional**: Add environment variable `NEXT_PUBLIC_API_URL` with your Integration API URL
+   - Example: `https://paxafe-integration-api.vercel.app/api/webhook/tive`
+   - If not set, defaults to `http://localhost:3000/api/webhook/tive` (for local dev)
+4. Deploy
 
-No environment variables needed for the Mock Sender.
+**Note**: You can also configure the API URL directly in the UI after deployment.
 
 ## Project Structure
 

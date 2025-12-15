@@ -20,7 +20,10 @@ interface RequestHistory {
 }
 
 export default function Home() {
-  const [apiUrl, setApiUrl] = useState('http://localhost:3000/api/webhook/tive')
+  // Use environment variable for default API URL, fallback to localhost for local dev
+  // NEXT_PUBLIC_ prefix makes env vars available in client components
+  const defaultApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/webhook/tive'
+  const [apiUrl, setApiUrl] = useState(defaultApiUrl)
   const [apiKey, setApiKey] = useState('')
   const [payload, setPayload] = useState<string>('')
   const [loading, setLoading] = useState(false)
