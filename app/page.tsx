@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { getSamplePayloads, generateRandomPayload, type SamplePayload } from '@/lib/payloads'
-import { CheckCircle2, XCircle, Loader2, Send, RefreshCw, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { CheckCircle2, XCircle, Loader2, Send, RefreshCw, Eye, EyeOff, Save, Trash2 } from 'lucide-react'
 
 interface RequestHistory {
   id: string
@@ -18,6 +18,9 @@ interface RequestHistory {
   error?: string
   payload: any
 }
+
+const STORAGE_KEY_API_URL = 'paxafe_mock_sender_api_url'
+const STORAGE_KEY_API_KEY = 'paxafe_mock_sender_api_key'
 
 export default function Home() {
   // Use environment variable for default API URL, fallback to localhost for local dev
@@ -31,9 +34,45 @@ export default function Home() {
   const [showRawData, setShowRawData] = useState<Record<string, boolean>>({})
   const [lastResponse, setLastResponse] = useState<any>(null)
   const [lastError, setLastError] = useState<string | null>(null)
-  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [configSaved, setConfigSaved] = useState(false)
 
   const samplePayloads = getSamplePayloads()
+
+  // Load saved configuration from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedApiUrl = localStorage.getItem(STORAGE_KEY_API_URL)
+      const savedApiKey = localStorage.getItem(STORAGE_KEY_API_KEY)
+      
+      if (savedApiUrl) {
+        setApiUrl(savedApiUrl)
+      }
+      if (savedApiKey) {
+        setApiKey(savedApiKey)
+      }
+    }
+  }, [])
+
+  // Save configuration to localStorage
+  const saveConfiguration = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_API_URL, apiUrl)
+      localStorage.setItem(STORAGE_KEY_API_KEY, apiKey)
+      setConfigSaved(true)
+      setTimeout(() => setConfigSaved(false), 3000)
+    }
+  }
+
+  // Clear saved configuration
+  const clearConfiguration = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_API_URL)
+      localStorage.removeItem(STORAGE_KEY_API_KEY)
+      setApiUrl(defaultApiUrl)
+      setApiKey('')
+      setConfigSaved(false)
+    }
+  }
 
   const loadSamplePayload = (sample: SamplePayload) => {
     setPayload(JSON.stringify(sample.payload, null, 2))
@@ -117,30 +156,6 @@ export default function Home() {
     setShowRawData(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const copyToClipboard = async (text: string, field: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopiedField(field)
-      setTimeout(() => setCopiedField(null), 2000)
-    } catch (error) {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = text
-      textArea.style.position = 'fixed'
-      textArea.style.opacity = '0'
-      document.body.appendChild(textArea)
-      textArea.select()
-      try {
-        document.execCommand('copy')
-        setCopiedField(field)
-        setTimeout(() => setCopiedField(null), 2000)
-      } catch (err) {
-        setLastError('Failed to copy to clipboard')
-      }
-      document.body.removeChild(textArea)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -164,58 +179,52 @@ export default function Home() {
                   <label className="text-sm font-medium text-gray-700 mb-1 block">
                     API URL
                   </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={apiUrl}
-                      onChange={(e) => setApiUrl(e.target.value)}
-                      placeholder="https://your-api.vercel.app/api/webhook/tive"
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyToClipboard(apiUrl, 'apiUrl')}
-                      title="Copy API URL"
-                      className="shrink-0"
-                    >
-                      {copiedField === 'apiUrl' ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+                  <Input
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    placeholder="https://your-api.vercel.app/api/webhook/tive"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">
                     API Key
                   </label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Your API key"
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyToClipboard(apiKey, 'apiKey')}
-                      title="Copy API Key"
-                      className="shrink-0"
-                      disabled={!apiKey}
-                    >
-                      {copiedField === 'apiKey' ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+                  <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Your API key"
+                  />
                 </div>
+
+                {/* Save Configuration Buttons */}
+                <div className="flex items-center gap-3 pt-2">
+                  <Button
+                    onClick={saveConfiguration}
+                    className="flex-1"
+                    variant="default"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Configuration
+                  </Button>
+                  <Button
+                    onClick={clearConfiguration}
+                    variant="outline"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear
+                  </Button>
+                </div>
+
+                {configSaved && (
+                  <Alert variant="success" className="mt-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertTitle>Configuration Saved</AlertTitle>
+                    <AlertDescription>
+                      Your API URL and API Key have been saved. They will be loaded automatically next time.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 
