@@ -37,6 +37,8 @@ export default function Home() {
   const [configSaved, setConfigSaved] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
   const [connectionMessage, setConnectionMessage] = useState<string>('')
+  const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'not-set'>('not-set')
+  const [apiKeyMessage, setApiKeyMessage] = useState<string>('')
 
   const samplePayloads = getSamplePayloads()
 
@@ -74,6 +76,74 @@ export default function Home() {
     }
   }
 
+  // Validate API key by making a test request
+  const validateApiKey = async () => {
+    if (!apiUrl || !apiKey) {
+      setApiKeyStatus('not-set')
+      setApiKeyMessage('API Key not provided')
+      return
+    }
+
+    setApiKeyStatus('checking')
+    setApiKeyMessage('Validating API key...')
+
+    try {
+      // Make a minimal test request with the API key
+      // Send an intentionally invalid payload to test auth without creating data
+      // The payload will fail validation, but if auth passes, we know the key is valid
+      const testPayload = {
+        DeviceName: "API_KEY_VALIDATION_TEST",
+        DeviceId: "TEST_VALIDATION_ONLY",
+        // Intentionally minimal to fail validation but test authentication
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(testPayload),
+      })
+
+      const responseData = await response.json().catch(() => ({}))
+
+      if (response.status === 401) {
+        // Clear authentication failure
+        setApiKeyStatus('invalid')
+        setApiKeyMessage('Invalid API key - Authentication failed')
+      } else if (response.status === 200 || response.status === 201) {
+        // Success - key is valid and payload was accepted
+        setApiKeyStatus('valid')
+        setApiKeyMessage('API key is valid')
+      } else if (response.status === 400) {
+        // 400 could mean validation error (auth passed) or auth error
+        if (responseData.error === 'Unauthorized' || 
+            responseData.message?.toLowerCase().includes('api key') ||
+            responseData.message?.toLowerCase().includes('unauthorized')) {
+          setApiKeyStatus('invalid')
+          setApiKeyMessage('Invalid API key')
+        } else {
+          // Validation error means auth passed - key is valid!
+          setApiKeyStatus('valid')
+          setApiKeyMessage('API key is valid')
+        }
+      } else {
+        setApiKeyStatus('invalid')
+        setApiKeyMessage(`Unexpected response: ${response.status}`)
+      }
+    } catch (error: any) {
+      // Network errors don't necessarily mean invalid key
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('Network')) {
+        setApiKeyStatus('not-set')
+        setApiKeyMessage('Cannot validate - check connection')
+      } else {
+        setApiKeyStatus('invalid')
+        setApiKeyMessage(`Validation error: ${error.message || 'Unknown error'}`)
+      }
+    }
+  }
+
   // Load saved configuration from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -102,6 +172,20 @@ export default function Home() {
       setConnectionMessage('API URL not configured')
     }
   }, [apiUrl])
+
+  // Auto-validate API key when API key or URL changes
+  useEffect(() => {
+    if (apiUrl && apiKey) {
+      // Debounce the validation
+      const timer = setTimeout(() => {
+        validateApiKey()
+      }, 800)
+      return () => clearTimeout(timer)
+    } else {
+      setApiKeyStatus('not-set')
+      setApiKeyMessage('API Key not provided')
+    }
+  }, [apiUrl, apiKey])
 
   // Save configuration to localStorage
   const saveConfiguration = () => {
@@ -284,6 +368,38 @@ export default function Home() {
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Your API key"
                   />
+                  
+                  {/* API Key Validation Status */}
+                  {apiKey && (
+                    <div className="flex items-center gap-2 mt-2 p-2 rounded-md border bg-gray-50">
+                      {apiKeyStatus === 'checking' && (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <span className="text-sm text-gray-600">Validating...</span>
+                        </>
+                      )}
+                      {apiKeyStatus === 'valid' && (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span className="text-sm text-green-700 font-medium">Valid API Key</span>
+                          <span className="text-xs text-gray-500 ml-2">{apiKeyMessage}</span>
+                        </>
+                      )}
+                      {apiKeyStatus === 'invalid' && (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span className="text-sm text-red-700 font-medium">Invalid API Key</span>
+                          <span className="text-xs text-gray-500 ml-2">{apiKeyMessage}</span>
+                        </>
+                      )}
+                      {apiKeyStatus === 'not-set' && apiKeyMessage && (
+                        <>
+                          <XCircle className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">{apiKeyMessage}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Save Configuration Buttons */}
